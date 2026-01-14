@@ -1,0 +1,15 @@
+cat <<EOF > .gitignore
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Forensic Logs (Keep these local, don't upload to GitHub)
+*.json
+*.log
+
+# System files
+.DS_Store
+.venv/
+bin/
+EOF
