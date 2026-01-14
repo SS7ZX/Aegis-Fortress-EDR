@@ -1,12 +1,16 @@
 from bcc import BPF
-import os, signal, json, sys, socket, struct
+import os, json, sys, socket, struct
 from datetime import datetime
+
+# CLEAN LOG FILE ON START
+LOG_FILE = "aegis_v5_intelligence.json"
+if os.path.exists(LOG_FILE):
+    os.remove(LOG_FILE)
 
 class AegisV5:
     def __init__(self):
-        print("\033[95m[⚡] INITIALIZING AEGIS v5.0: ZERO-TRUST KERNEL CORE\033[0m")
+        print("\033[92m[⚡] AEGIS v5.1: RECOVERY MODE ACTIVE\033[0m")
         self.b = BPF(src_file="sensor.c")
-        self.log_file = "aegis_v5_intelligence.json"
 
     def format_ip(self, ip_int):
         return socket.inet_ntoa(struct.pack("<L", ip_int))
@@ -16,31 +20,25 @@ class AegisV5:
         ts = datetime.now().strftime('%H:%M:%S')
         comm = event.comm.decode(errors='replace')
         
-        # LOGIC MAPPING
-        if event.event_type == 3: # NETWORK
-            rip = self.format_ip(event.remote_ip)
-            print(f"\033[41m[{ts}] NET-KILL | {comm} (PID:{event.pid}) attempted connection to {rip}! TERMINATED.\033[0m")
-        elif event.event_type == 1: # FIM
-            path = event.fname.decode(errors='replace')
-            print(f"\033[91m[{ts}] FIM-KILL | {comm} attempted to read {path}! TERMINATED.\033[0m")
-        elif event.event_type == 0: # EDR
-            print(f"\033[1;91m[{ts}] EDR-KILL | Blacklisted tool '{comm}' execution blocked! TERMINATED.\033[0m")
-        
-        self.save_log(event)
+        msg = ""
+        if event.event_type == 3:
+            msg = f"NET-BLOCK | Dest: {self.format_ip(event.remote_ip)}"
+        elif event.event_type == 1:
+            msg = f"FIM-BLOCK | Path: {event.fname.decode()}"
+        elif event.event_type == 0:
+            msg = f"EDR-BLOCK | Tool: {comm}"
 
-    def save_log(self, event):
-        with open(self.log_file, "a") as f:
-            f.write(json.dumps({
-                "ts": datetime.now().isoformat(),
-                "pid": event.pid,
-                "uid": event.uid,
-                "comm": event.comm.decode(),
-                "type": event.event_type
-            }) + "\n")
+        print(f"\033[91m[{ts}] KILL-SIGNAL SENT -> {comm} (PID:{event.pid}) | {msg}\033[0m")
+        self.save_log(event, msg)
+
+    def save_log(self, event, msg):
+        with open(LOG_FILE, "a") as f:
+            log = {"ts": datetime.now().isoformat(), "pid": event.pid, "comm": event.comm.decode(), "reason": msg}
+            f.write(json.dumps(log) + "\n")
 
     def run(self):
         print("="*80)
-        print("AEGIS FORTRESS v5.0 | SYSTEM PROTECTED BY KERNEL-SPACE ENFORCEMENT")
+        print("AEGIS FORTRESS v5.1 | SAFETY RAILS ENABLED (Targeting UID 1000+)")
         print("="*80)
         self.b["events"].open_perf_buffer(self.process_event)
         while True:
@@ -49,4 +47,3 @@ class AegisV5:
 
 if __name__ == "__main__":
     AegisV5().run()
-
